@@ -8,7 +8,12 @@ from data import get_data, resample_data
 from strategies import supertrend_rsi_strategy, advanced_strategy
 from backtest import run_backtest
 from metrics import calculate_metrics
-from config import SYMBOL, INTERVAL, PERIOD, INITIAL_CAPITAL, STOP_LOSS_PCT, TAKE_PROFIT_PCT, SUPERTREND_PERIOD, SUPERTREND_MULTIPLIER, ADV_SUPERTREND_PERIOD, ADV_SUPERTREND_MULTIPLIER
+from config import (
+    SYMBOL, INTERVAL, PERIOD, INITIAL_CAPITAL,
+    STOP_LOSS_PCT, TAKE_PROFIT_PCT,
+    SUPERTREND_PERIOD, SUPERTREND_MULTIPLIER,
+    ADV_SUPERTREND_PERIOD, ADV_SUPERTREND_MULTIPLIER
+)
 from database import init_db
 from param_tuner import param_tuner
 
@@ -39,7 +44,6 @@ def print_metrics(metrics, name="Strategy"):
     print(f"\n📊 Backtest Metrics ({name}):")
     for key, value in metrics.items():
         if key != "Final Capital":
-            # اگر مقدار عددی است فرمت کن، در غیر اینصورت مستقیم چاپ کن
             if isinstance(value, (int, float)):
                 print(f"{key}: {value:.2f}")
             else:
@@ -114,17 +118,14 @@ def save_results(strategy_name, trade_log, metrics, capital_over_time):
 
     safe_name = strategy_name.replace(' ', '_')
 
-    # ذخیره trade log به CSV
     if len(trade_log) > 0 and isinstance(trade_log[0], dict):
         pd.DataFrame(trade_log).to_csv(f"results/trade_log_{safe_name}.csv", index=False)
     else:
         pd.DataFrame({'Log': trade_log}).to_csv(f"results/trade_log_{safe_name}.csv", index=False)
 
-    # ذخیره metrics به JSON
     with open(f"results/metrics_{safe_name}.json", "w") as f:
         json.dump(metrics, f, indent=4)
 
-    # ذخیره equity curve به CSV
     capital_df = pd.DataFrame(capital_over_time, columns=['Time', 'Capital'])
     capital_df.to_csv(f"results/equity_curve_{safe_name}.csv", index=False)
 
@@ -132,7 +133,6 @@ def save_results(strategy_name, trade_log, metrics, capital_over_time):
 
 
 def convert_interval_to_minutes(interval):
-    """تبدیل رشته تایم‌فریم به دقیقه برای متریک‌ها"""
     if interval.endswith('T'):
         return int(interval[:-1])
     elif interval == '1H':
@@ -140,7 +140,68 @@ def convert_interval_to_minutes(interval):
     elif interval == '1D':
         return 1440
     else:
-        return 60  # مقدار پیش‌فرض
+        return 60
+
+
+def split_data_for_out_of_sample(df, split_ratio=0.8):
+    if df is None or df.empty:
+        return None, None
+    split_index = int(len(df) * split_ratio)
+    df_in_sample = df.iloc[:split_index].copy()
+    df_out_sample = df.iloc[split_index:].copy()
+    return df_in_sample, df_out_sample
+
+
+def run_backtest_and_report(df, strategy_func, strategy_name, timeframe, suffix=""):
+    if df is None or df.empty:
+        print(f"⚠️ No data for {strategy_name} {timeframe} {suffix}")
+        return
+
+    # حداقل طول داده برای جلوگیری از ارور index out of bounds
+    min_required_length = max(SUPERTREND_PERIOD, 14, ADV_SUPERTREND_PERIOD)
+    if len(df) < min_required_length:
+        print(f"⚠️ Data too short for {strategy_name} {timeframe} {suffix} (need at least {min_required_length} rows). Skipping.")
+        return
+
+    try:
+        df = strategy_func(df)
+    except Exception as e:
+        print(f"❌ Error in strategy execution for {strategy_name} {timeframe} {suffix}: {e}")
+        return
+
+    if 'Signal' in df.columns:
+        buy_signals = (df['Signal'] == 'buy').sum()
+        sell_signals = (df['Signal'] == 'sell').sum()
+        print(f"Signals generated — Buy: {buy_signals:,}, Sell: {sell_signals:,}\n")
+    else:
+        print(f"⚠️ No 'Signal' column found in data after strategy application for {strategy_name} {timeframe} {suffix}\n")
+
+    final_capital, trade_log, capital_over_time = run_backtest(
+        df,
+        initial_capital=INITIAL_CAPITAL,
+        stop_loss_pct=STOP_LOSS_PCT,
+        take_profit_pct=TAKE_PROFIT_PCT
+    )
+
+    metrics = calculate_metrics(
+        capital_over_time,
+        trade_log,
+        initial_capital=INITIAL_CAPITAL,
+        timeframe_minutes=convert_interval_to_minutes(timeframe)
+    )
+    metrics["Final Capital"] = final_capital
+
+    print_trade_log(trade_log, name=f"{strategy_name} {timeframe} {suffix}")
+    print_metrics(metrics, name=f"{strategy_name} {timeframe} {suffix}")
+    save_results(f"{strategy_name}_{timeframe}_{suffix}".strip('_'), trade_log, metrics, capital_over_time)
+
+    try:
+        plot_price_chart_with_indicators(df, name=f"{strategy_name} {timeframe} {suffix}")
+        plot_equity_curve(capital_over_time)
+    except Exception as e:
+        print(f"⚠️ Error showing plots for {strategy_name} {timeframe} {suffix}: {e}")
+
+    print("\n" + "="*50 + "\n")
 
 
 def main():
@@ -216,63 +277,30 @@ def main():
         )
         strategy_name = "Supertrend + RSI"
 
-    # لیست تایم‌فریم‌های مورد نظر برای بک‌تست
     timeframes = ['5T', '15T', '1H', '1D']
 
     for tf in timeframes:
         print("\n" + "="*50)
-        print(f"Starting backtest for timeframe: {tf}")
+        print(f"Starting backtest (In-Sample) for timeframe: {tf}")
         print("="*50 + "\n")
 
-        # اگر تایم‌فریم داده برابر با تایم‌فریم اصلی بود نیازی به resample نیست
         if tf == INTERVAL:
             df_tf = df_original.copy()
         else:
             df_tf = resample_data(df_original, tf)
 
-        try:
-            df_tf = strategy_func(df_tf)
-        except Exception as e:
-            print(f"❌ Error in strategy execution for timeframe {tf}: {e}")
-            continue
+        # تقسیم داده به In-Sample و Out-of-Sample
+        df_in_sample, df_out_sample = split_data_for_out_of_sample(df_tf, split_ratio=0.8)
 
-        # نمایش تعداد سیگنال‌ها
-        if 'Signal' in df_tf.columns:
-            buy_signals = (df_tf['Signal'] == 'buy').sum()
-            sell_signals = (df_tf['Signal'] == 'sell').sum()
-            print(f"Signals generated — Buy: {buy_signals:,}, Sell: {sell_signals:,}\n")
-        else:
-            print("⚠️ No 'Signal' column found in data after strategy application.\n")
+        print(f"Data split: {len(df_in_sample)} rows for In-Sample, {len(df_out_sample)} rows for Out-of-Sample")
 
-        final_capital, trade_log, capital_over_time = run_backtest(
-            df_tf,
-            initial_capital=INITIAL_CAPITAL,
-            stop_loss_pct=STOP_LOSS_PCT,
-            take_profit_pct=TAKE_PROFIT_PCT
-        )
+        # اجرای بک‌تست روی داده In-Sample
+        run_backtest_and_report(df_in_sample, strategy_func, strategy_name, tf, suffix="In-Sample")
 
-        metrics = calculate_metrics(
-            capital_over_time,
-            trade_log,
-            initial_capital=INITIAL_CAPITAL,
-            timeframe_minutes=convert_interval_to_minutes(tf)
-        )
-        metrics["Final Capital"] = final_capital
+        # اجرای بک‌تست روی داده Out-of-Sample
+        run_backtest_and_report(df_out_sample, strategy_func, strategy_name, tf, suffix="Out-of-Sample")
 
-        print_trade_log(trade_log, name=f"{strategy_name} {tf}")
-        print_metrics(metrics, name=f"{strategy_name} {tf}")
-        save_results(f"{strategy_name}_{tf}", trade_log, metrics, capital_over_time)
-
-        # نمایش اجباری نمودارها با کنترل خطا
-        try:
-            plot_price_chart_with_indicators(df_tf, name=f"{strategy_name} {tf}")
-            plot_equity_curve(capital_over_time)
-        except Exception as e:
-            print(f"⚠️ Error showing plots for timeframe {tf}: {e}")
-
-        print("\n" + "="*50 + "\n")
-
-    print("All backtests completed.")
+    print("All backtests (In-Sample & Out-of-Sample) completed.")
 
 
 if __name__ == "__main__":
