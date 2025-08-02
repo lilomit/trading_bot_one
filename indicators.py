@@ -2,54 +2,67 @@ import pandas as pd
 import ta
 
 def calculate_rsi(df, window=14):
-    # استخراج Close به‌صورت Series مطمئن
+    df = df.copy()
+
+    # اطمینان از وجود ستون Close
+    if 'Close' not in df.columns:
+        raise ValueError("❌ Error: 'Close' column not found in DataFrame")
+
+    # اطمینان از اینکه Series و عددی باشه
     close = df['Close']
     if isinstance(close, pd.DataFrame):
-        close = close.iloc[:, 0]
-    close_series = pd.to_numeric(close, errors='coerce').dropna()
+        close = close.squeeze()
+
+    close = pd.to_numeric(close, errors='coerce')
+    df['Close'] = close  # آپدیت دیتافریم اصلی
+    df.dropna(subset=['Close'], inplace=True)
+
+    if close.empty or close.isna().all():
+        raise ValueError("❌ Error: 'Close' column is empty or full of NaNs after cleaning.")
 
     # محاسبه RSI
-    rsi = ta.momentum.RSIIndicator(close=close_series, window=window).rsi()
-    # چون rsi ایندکس اصلی رو حفظ نمی‌کنه، مجدداً به df می‌چسبونیم
-    df = df.loc[rsi.index]
+    rsi = ta.momentum.RSIIndicator(close=close, window=window).rsi()
     df['RSI'] = rsi
+
     return df
 
+
 def calculate_supertrend(df, period=10, multiplier=3):
-    # تبدیل ستون‌ها به Series عددی
-    high = df['High']
-    low = df['Low']
-    close = df['Close']
-    if isinstance(high, pd.DataFrame):
-        high = high.iloc[:, 0]
-        low = low.iloc[:, 0]
-        close = close.iloc[:, 0]
-    high = pd.to_numeric(high, errors='coerce')
-    low = pd.to_numeric(low, errors='coerce')
-    close = pd.to_numeric(close, errors='coerce')
+    df = df.copy()
 
-    # حذف ردیف‌های ناقص
-    temp = pd.concat([high, low, close], axis=1).dropna()
-    high, low, close = temp.iloc[:,0], temp.iloc[:,1], temp.iloc[:,2]
+    # بررسی ستون‌های مورد نیاز
+    for col in ['High', 'Low', 'Close']:
+        if col not in df.columns:
+            raise ValueError(f"❌ Error: '{col}' column not found in DataFrame")
 
-    atr = ta.volatility.AverageTrueRange(high=high, low=low, close=close, window=period).average_true_range()
-    hl2 = (high + low) / 2
+        df[col] = pd.to_numeric(df[col], errors='coerce')
+
+    df.dropna(subset=['High', 'Low', 'Close'], inplace=True)
+
+    if df.empty:
+        raise ValueError("❌ Error: DataFrame is empty after cleaning High/Low/Close.")
+
+    # محاسبه ATR
+    atr = ta.volatility.AverageTrueRange(
+        high=df['High'],
+        low=df['Low'],
+        close=df['Close'],
+        window=period
+    ).average_true_range()
+
+    hl2 = (df['High'] + df['Low']) / 2
     upperband = hl2 + multiplier * atr
     lowerband = hl2 - multiplier * atr
 
-    supertrend = pd.Series(index=temp.index, dtype='bool')
-    # مقدار اولیه بر اساس Close vs mid
-    supertrend.iloc[0] = True
-    for i in range(1, len(temp)):
-        idx = temp.index[i]
-        if close.iloc[i] > upperband.iloc[i - 1]:
-            supertrend.iloc[i] = True
-        elif close.iloc[i] < lowerband.iloc[i - 1]:
-            supertrend.iloc[i] = False
+    supertrend = [True]
+    for i in range(1, len(df)):
+        if df['Close'].iloc[i] > upperband.iloc[i - 1]:
+            supertrend.append(True)
+        elif df['Close'].iloc[i] < lowerband.iloc[i - 1]:
+            supertrend.append(False)
         else:
-            supertrend.iloc[i] = supertrend.iloc[i - 1]
+            supertrend.append(supertrend[-1])
 
-    # الحاق به df اصلی
-    df = df.loc[supertrend.index]
-    df['Supertrend'] = supertrend.values
+    df['Supertrend'] = supertrend
+
     return df

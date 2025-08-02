@@ -3,6 +3,8 @@ import pandas as pd
 
 def calculate_metrics(capital_over_time, trade_log, initial_capital=1000, timeframe_minutes=5):
     df = pd.DataFrame(capital_over_time, columns=['Time', 'Capital'])
+
+    df['Time'] = pd.to_datetime(df['Time'])
     df.set_index('Time', inplace=True)
     df = df.sort_index()
 
@@ -14,7 +16,7 @@ def calculate_metrics(capital_over_time, trade_log, initial_capital=1000, timefr
 
     total_return = (df['Capital'].iloc[-1] / initial_capital - 1) * 100
 
-    days = (df.index[-1] - df.index[0]).total_seconds() / (3600*24)
+    days = (df.index[-1] - df.index[0]).total_seconds() / (3600 * 24)
     years = days / 365.25
     annualized_return = ((df['Capital'].iloc[-1] / initial_capital) ** (1 / years) - 1) * 100 if years > 0 else 0
 
@@ -23,16 +25,11 @@ def calculate_metrics(capital_over_time, trade_log, initial_capital=1000, timefr
     max_drawdown = drawdown.min() * 100
 
     returns = df['Capital'].pct_change().dropna()
-
-    # محاسبه ضریب شارپ متناسب با تایم‌فریم
-    # مثلا تایم فریم ۵ دقیقه = 12 بار در ساعت * 24 ساعت * 252 روز = حدود 30240 بار در سال
     periods_per_year = (60 / timeframe_minutes) * 24 * 252
     sharpe_ratio = (returns.mean() / returns.std()) * np.sqrt(periods_per_year) if returns.std() != 0 else 0
 
-    wins = 0
-    losses = 0
-    gross_profit = 0
-    gross_loss = 0
+    wins, losses = 0, 0
+    gross_profit, gross_loss = 0, 0
 
     for log in trade_log:
         if 'Profit:' in log:
