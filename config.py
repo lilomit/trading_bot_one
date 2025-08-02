@@ -2,8 +2,8 @@
 
 # General config
 SYMBOL = "BTC-USD"
-INTERVAL = "5m"
-PERIOD = "20d"
+INTERVAL = "1h"
+PERIOD = "30d"
 
 # Supertrend default parameters
 SUPERTREND_PERIOD = 10
@@ -14,4 +14,8 @@ ADV_SUPERTREND_PERIOD = 7
 ADV_SUPERTREND_MULTIPLIER = 2
 
 # Initial capital for backtest
-INITIAL_CAPITAL = 10000
+INITIAL_CAPITAL = 1000
+
+# Risk management: Stop Loss and Take Profit percentages (مثلاً 0.02 یعنی 2%)
+STOP_LOSS_PCT = 0.02       # 2% حد ضرر
+TAKE_PROFIT_PCT = 0.04     # 4% حد سود
