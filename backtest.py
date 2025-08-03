@@ -1,6 +1,12 @@
 import pandas as pd
 
-def run_backtest(df, initial_capital=1000.0, stop_loss_pct=None, take_profit_pct=None):
+def run_backtest(
+    df,
+    initial_capital=1000.0,
+    stop_loss_pct=None,
+    take_profit_pct=None,
+    trading_fee_pct=0.0
+):
     capital = initial_capital
     position = 0.0
     entry_price = 0.0
@@ -9,6 +15,7 @@ def run_backtest(df, initial_capital=1000.0, stop_loss_pct=None, take_profit_pct
     take_profit_price = None
     trade_log = []
     capital_over_time = []
+    total_fees = 0.0  # متغیر جمع کل کارمزد
 
     # تبدیل مطمئن ایندکس به datetime (اگر نیست)
     if not isinstance(df.index, pd.DatetimeIndex):
@@ -23,20 +30,17 @@ def run_backtest(df, initial_capital=1000.0, stop_loss_pct=None, take_profit_pct
         current_time = df.index[i]
 
         if sig == 'buy' and position == 0.0:
-            position = capital / price
+            gross_position = capital / price
+            fee_cost = capital * trading_fee_pct  # هزینه معامله خرید
+            total_fees += fee_cost  # اضافه کردن به کل کارمزد
+            net_capital = capital - fee_cost
+            
+            position = net_capital / price
             entry_price = price
             entry_time = current_time
             capital = 0.0
-
-            if stop_loss_pct is not None:
-                stop_loss_price = entry_price * (1 - stop_loss_pct)
-            else:
-                stop_loss_price = None
-
-            if take_profit_pct is not None:
-                take_profit_price = entry_price * (1 + take_profit_pct)
-            else:
-                take_profit_price = None
+            stop_loss_price = entry_price * (1 - stop_loss_pct) if stop_loss_pct is not None else None
+            take_profit_price = entry_price * (1 + take_profit_pct) if take_profit_pct is not None else None
 
             trade_log.append({
                 "entry_time": entry_time.isoformat(),
@@ -45,7 +49,8 @@ def run_backtest(df, initial_capital=1000.0, stop_loss_pct=None, take_profit_pct
                 "exit_price": None,
                 "volume": position,
                 "profit_pct": None,
-                "reason": "buy"
+                "reason": "buy",
+                "fee_cost_entry": fee_cost
             })
 
         elif position > 0.0:
@@ -64,8 +69,13 @@ def run_backtest(df, initial_capital=1000.0, stop_loss_pct=None, take_profit_pct
                     exit_price = price
                     reason = "Signal Sell"
 
-                capital = position * exit_price
-                profit_pct = (exit_price - entry_price) / entry_price * 100
+                gross_capital = position * exit_price
+                fee_cost = gross_capital * trading_fee_pct  # هزینه معامله فروش
+                total_fees += fee_cost  # اضافه کردن به کل کارمزد
+                net_capital = gross_capital - fee_cost
+                capital = net_capital
+
+                profit_pct = (net_capital - (position * entry_price)) / (position * entry_price) * 100
 
                 for trade in reversed(trade_log):
                     if trade["exit_time"] is None:
@@ -73,6 +83,7 @@ def run_backtest(df, initial_capital=1000.0, stop_loss_pct=None, take_profit_pct
                         trade["exit_price"] = exit_price
                         trade["profit_pct"] = profit_pct
                         trade["reason"] = reason
+                        trade["fee_cost_exit"] = fee_cost
                         break
 
                 position = 0.0
@@ -87,8 +98,13 @@ def run_backtest(df, initial_capital=1000.0, stop_loss_pct=None, take_profit_pct
     # فروش نهایی اگر موقعیت باز بود
     if position > 0.0:
         last_price = float(df['Close'].iloc[-1])
-        capital = position * last_price
-        profit_pct = (last_price - entry_price) / entry_price * 100
+        gross_capital = position * last_price
+        fee_cost = gross_capital * trading_fee_pct
+        total_fees += fee_cost
+        net_capital = gross_capital - fee_cost
+
+        capital = net_capital
+        profit_pct = (net_capital - (position * entry_price)) / (position * entry_price) * 100
         current_time = df.index[-1].isoformat()
 
         for trade in reversed(trade_log):
@@ -97,6 +113,7 @@ def run_backtest(df, initial_capital=1000.0, stop_loss_pct=None, take_profit_pct
                 trade["exit_price"] = last_price
                 trade["profit_pct"] = profit_pct
                 trade["reason"] = "Final Sell"
+                trade["fee_cost_exit"] = fee_cost
                 break
 
-    return capital, trade_log, capital_over_time
+    return capital, trade_log, capital_over_time, total_fees

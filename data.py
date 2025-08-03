@@ -1,6 +1,8 @@
 import yfinance as yf
 import pandas as pd
 
+from utils.time import convert_interval_to_pandas_freq  # ایمپورت تابع از utils/time.py
+
 def get_data(ticker='BTC-USD', interval='5m', period='20d'):
     """
     دریافت داده‌ها از yfinance با پارامترهای تیکر، تایم‌فریم و دوره
@@ -11,29 +13,11 @@ def get_data(ticker='BTC-USD', interval='5m', period='20d'):
     if isinstance(df.columns, pd.MultiIndex):
         df.columns = df.columns.get_level_values(0)
 
-    # فقط ستون‌های مورد نیاز
+    # فقط ستون‌های مورد نیاز را نگه می‌داریم
     df = df[['Open', 'High', 'Low', 'Close', 'Volume']]
     df.dropna(inplace=True)
     return df
 
-def convert_interval_to_pandas_freq(interval):
-    """
-    تبدیل فرمت تایم‌فریم ورودی به فرمت مناسب pandas resample
-    مثل: 5T -> 5min، 1H -> 1h، 1D -> 1d
-    """
-    interval = interval.upper()
-    if interval.endswith('T'):
-        # 'T' دقیقه است، به 'min' تبدیل شود
-        return interval[:-1] + 'min'
-    elif interval.endswith('H'):
-        # 'H' ساعت است، به 'h' تبدیل شود
-        return interval[:-1] + 'h'
-    elif interval.endswith('D'):
-        # روزانه
-        return interval[:-1] + 'd'
-    else:
-        # اگر فرمت ناشناخته بود، همان مقدار را برگردان
-        return interval
 
 def resample_data(df, new_interval):
     """
@@ -48,7 +32,7 @@ def resample_data(df, new_interval):
         df.index = pd.to_datetime(df.index, errors='coerce')
         df.dropna(inplace=True)
     
-    # تبدیل فرمت تایم فریم به فرمت pandas
+    # تبدیل فرمت تایم فریم به فرمت pandas (از utils/time.py)
     pandas_freq = convert_interval_to_pandas_freq(new_interval)
 
     df_resampled = pd.DataFrame()

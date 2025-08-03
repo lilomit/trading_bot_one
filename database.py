@@ -8,6 +8,7 @@ def init_db():
     os.makedirs(os.path.dirname(DB_FILE), exist_ok=True)
     with closing(sqlite3.connect(DB_FILE)) as conn:
         c = conn.cursor()
+        
         # جدول معاملات
         c.execute("""
         CREATE TABLE IF NOT EXISTS trades (
@@ -18,7 +19,9 @@ def init_db():
             exit_price REAL,
             volume REAL,
             profit_pct REAL,
-            reason TEXT
+            reason TEXT,
+            fee_cost_entry REAL,
+            fee_cost_exit REAL
         )
         """)
 
@@ -42,8 +45,10 @@ def save_trade(trade):
     with closing(sqlite3.connect(DB_FILE)) as conn:
         c = conn.cursor()
         c.execute("""
-        INSERT INTO trades (entry_time, exit_time, entry_price, exit_price, volume, profit_pct, reason)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO trades (
+            entry_time, exit_time, entry_price, exit_price,
+            volume, profit_pct, reason, fee_cost_entry, fee_cost_exit
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             trade.get("entry_time"),
             trade.get("exit_time"),
@@ -51,7 +56,9 @@ def save_trade(trade):
             trade.get("exit_price"),
             trade.get("volume"),
             trade.get("profit_pct"),
-            trade.get("reason")
+            trade.get("reason"),
+            trade.get("fee_cost_entry", 0),
+            trade.get("fee_cost_exit", 0)
         ))
         conn.commit()
 
@@ -59,8 +66,11 @@ def save_metrics(metrics, run_time):
     with closing(sqlite3.connect(DB_FILE)) as conn:
         c = conn.cursor()
         c.execute("""
-        INSERT INTO metrics (run_time, total_return, annualized_return, max_drawdown, sharpe_ratio, win_rate, profit_factor, avg_trade_return)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO metrics (
+            run_time, total_return, annualized_return,
+            max_drawdown, sharpe_ratio, win_rate,
+            profit_factor, avg_trade_return
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             run_time,
             metrics.get("Total Return (%)"),

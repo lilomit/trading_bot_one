@@ -1,10 +1,10 @@
 {
-    "Total Return (%)": -1.9999999999999907,
-    "Annualized Return (%)": -71.26808026601756,
-    "Max Drawdown (%)": -2.761796305107027,
-    "Sharpe Ratio": -16.81902837931036,
+    "Total Return (%)": 0.0,
+    "Annualized Return (%)": 0.0,
+    "Max Drawdown (%)": 0.0,
+    "Sharpe Ratio": 0,
     "Win Rate (%)": 0,
     "Profit Factor": Infinity,
     "Average Trade Return (%)": 0,
-    "Final Capital": 980.0000000000001
+    "Final Capital": 1000
 }

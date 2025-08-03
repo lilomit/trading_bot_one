@@ -1,14 +1,16 @@
 import itertools
 from backtest import run_backtest
 from metrics import calculate_metrics
+from config import TRADING_FEE_PCT, INITIAL_CAPITAL, STOP_LOSS_PCT, TAKE_PROFIT_PCT
 
 def param_tuner(
     df,
     strategy_func,
     param_grid,
-    initial_capital=1000,
-    stop_loss_pct=None,
-    take_profit_pct=None,
+    initial_capital=INITIAL_CAPITAL,
+    stop_loss_pct=STOP_LOSS_PCT,
+    take_profit_pct=TAKE_PROFIT_PCT,
+    trading_fee_pct=TRADING_FEE_PCT,
     timeframe_minutes=60
 ):
     keys = list(param_grid.keys())
@@ -23,11 +25,12 @@ def param_tuner(
         try:
             df_strategy = strategy_func(df.copy(), **params)
 
-            final_capital, trade_log, capital_over_time = run_backtest(
+            final_capital, trade_log, capital_over_time, _ = run_backtest(  # ← این خط اصلاح شده
                 df_strategy,
                 initial_capital=initial_capital,
                 stop_loss_pct=stop_loss_pct,
-                take_profit_pct=take_profit_pct
+                take_profit_pct=take_profit_pct,
+                trading_fee_pct=trading_fee_pct
             )
 
             metrics = calculate_metrics(
