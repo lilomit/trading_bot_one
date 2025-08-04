@@ -2,25 +2,27 @@ import pandas as pd
 import ta
 
 def calculate_rsi(df, window=14):
+    """
+    محاسبه RSI و اضافه کردن آن به DataFrame
+    پارامترها:
+    - df: DataFrame ورودی حاوی ستون 'Close'
+    - window: طول پنجره RSI (پیش‌فرض 14)
+    
+    خروجی:
+    DataFrame با ستون جدید 'RSI'
+    """
     df = df.copy()
 
-    # اطمینان از وجود ستون Close
     if 'Close' not in df.columns:
         raise ValueError("❌ Error: 'Close' column not found in DataFrame")
 
-    # اطمینان از اینکه Series و عددی باشه
-    close = df['Close']
-    if isinstance(close, pd.DataFrame):
-        close = close.squeeze()
-
-    close = pd.to_numeric(close, errors='coerce')
-    df['Close'] = close  # آپدیت دیتافریم اصلی
+    close = pd.to_numeric(df['Close'], errors='coerce')
+    df['Close'] = close
     df.dropna(subset=['Close'], inplace=True)
 
     if close.empty or close.isna().all():
         raise ValueError("❌ Error: 'Close' column is empty or full of NaNs after cleaning.")
 
-    # محاسبه RSI
     rsi = ta.momentum.RSIIndicator(close=close, window=window).rsi()
     df['RSI'] = rsi
 
@@ -28,9 +30,18 @@ def calculate_rsi(df, window=14):
 
 
 def calculate_supertrend(df, period=10, multiplier=3):
+    """
+    محاسبه Supertrend و اضافه کردن آن به DataFrame
+    پارامترها:
+    - df: DataFrame ورودی با ستون‌های 'High', 'Low', 'Close'
+    - period: طول دوره ATR (پیش‌فرض 10)
+    - multiplier: ضریب ضرب ATR برای باندهای بالا و پایین (پیش‌فرض 3)
+    
+    خروجی:
+    DataFrame با ستون جدید 'Supertrend' (bool)
+    """
     df = df.copy()
 
-    # بررسی ستون‌های مورد نیاز
     for col in ['High', 'Low', 'Close']:
         if col not in df.columns:
             raise ValueError(f"❌ Error: '{col}' column not found in DataFrame")
@@ -39,10 +50,11 @@ def calculate_supertrend(df, period=10, multiplier=3):
 
     df.dropna(subset=['High', 'Low', 'Close'], inplace=True)
 
-    if df.empty:
-        raise ValueError("❌ Error: DataFrame is empty after cleaning High/Low/Close.")
+    # اگر طول دیتافریم کمتر از period بود، ستون Supertrend بساز و مقدار True برگردون
+    if len(df) < period:
+        df['Supertrend'] = True
+        return df
 
-    # محاسبه ATR
     atr = ta.volatility.AverageTrueRange(
         high=df['High'],
         low=df['Low'],

@@ -1,10 +1,11 @@
-# utils/plot.py
-
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import pandas as pd
+import os
+from config import SAVE_PLOTS, SHOW_PLOTS
 
-def plot_price_chart_with_indicators(df, name="Price & Indicators"):
+
+def plot_price_chart_with_indicators(df, name="Price & Indicators", save_dir="results", show=False):
     df = df.copy()
     if 'Close' not in df.columns:
         print("⚠️ Warning: 'Close' column not found in dataframe. Cannot plot price chart.")
@@ -20,8 +21,8 @@ def plot_price_chart_with_indicators(df, name="Price & Indicators"):
     ax1.plot(df.index, df['Close'], label='Close Price', color='gray', alpha=0.6)
 
     if 'Signal' in df.columns:
-        ax1.scatter(df.index[df['Signal']=='buy'], df['Close'][df['Signal']=='buy'], marker='^', color='green', label='Buy Signal')
-        ax1.scatter(df.index[df['Signal']=='sell'], df['Close'][df['Signal']=='sell'], marker='v', color='red', label='Sell Signal')
+        ax1.scatter(df.index[df['Signal'] == 'buy'], df['Close'][df['Signal'] == 'buy'], marker='^', color='green', label='Buy Signal')
+        ax1.scatter(df.index[df['Signal'] == 'sell'], df['Close'][df['Signal'] == 'sell'], marker='v', color='red', label='Sell Signal')
 
     if 'Supertrend' in df.columns and df['Supertrend'].dtype != 'bool':
         ax1.plot(df.index, df['Supertrend'], label='Supertrend', color='orange')
@@ -44,18 +45,29 @@ def plot_price_chart_with_indicators(df, name="Price & Indicators"):
 
     plt.xticks(rotation=45)
     plt.tight_layout()
-    plt.show()
+
+    if SAVE_PLOTS:
+        os.makedirs(save_dir, exist_ok=True)
+        filename = os.path.join(save_dir, f"{name.replace(' ', '_')}_price_chart.png")
+        plt.savefig(filename)
+        print(f"📈 Saved price chart to: {filename}")
+
+    if show and SHOW_PLOTS:
+        plt.show()
+
+    plt.close()
 
 
-def plot_equity_curve(capital_over_time):
+def plot_equity_curve(capital_over_time, name="Equity Curve", save_dir="results", show=False):
     if not capital_over_time:
         print("⚠️ No capital data to plot equity curve.")
         return
+
     times, capitals = zip(*capital_over_time)
 
     plt.figure(figsize=(16, 5))
     plt.plot(times, capitals, label='Equity Curve', color='blue', linewidth=2)
-    plt.title("📈 Equity Curve (Growth of Capital)")
+    plt.title("📈 Equity Curve")
     plt.xlabel("Time")
     plt.ylabel("Capital")
     plt.grid(True)
@@ -63,4 +75,14 @@ def plot_equity_curve(capital_over_time):
     plt.legend()
     plt.gcf().autofmt_xdate()
     plt.tight_layout()
-    plt.show()
+
+    if SAVE_PLOTS:
+        os.makedirs(save_dir, exist_ok=True)
+        filename = os.path.join(save_dir, f"{name.replace(' ', '_')}_equity_curve.png")
+        plt.savefig(filename)
+        print(f"📉 Saved equity curve to: {filename}")
+
+    if show and SHOW_PLOTS:
+        plt.show()
+
+    plt.close()

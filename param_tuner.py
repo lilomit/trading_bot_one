@@ -11,7 +11,8 @@ def param_tuner(
     stop_loss_pct=STOP_LOSS_PCT,
     take_profit_pct=TAKE_PROFIT_PCT,
     trading_fee_pct=TRADING_FEE_PCT,
-    timeframe_minutes=60
+    timeframe_minutes=60,
+    verbose=True
 ):
     keys = list(param_grid.keys())
     values = list(param_grid.values())
@@ -25,7 +26,7 @@ def param_tuner(
         try:
             df_strategy = strategy_func(df.copy(), **params)
 
-            final_capital, trade_log, capital_over_time, _ = run_backtest(  # ← این خط اصلاح شده
+            final_capital, trade_log, capital_over_time, _ = run_backtest(
                 df_strategy,
                 initial_capital=initial_capital,
                 stop_loss_pct=stop_loss_pct,
@@ -46,18 +47,22 @@ def param_tuner(
                 "metrics": metrics
             })
 
-            print(f"Tested params: {params} -> Final Capital: {final_capital:.2f}")
+            if verbose:
+                print(f"Tested params: {params} -> Final Capital: {final_capital:.2f}")
 
         except Exception as e:
-            print(f"Error with params {params}: {e}")
+            if verbose:
+                print(f"Error with params {params}: {e}")
 
     results.sort(key=lambda x: x["metrics"]["Final Capital"], reverse=True)
 
     if results:
         best = results[0]
-        print(f"\nBest params: {best['params']}")
-        print(f"Metrics: {best['metrics']}")
+        if verbose:
+            print(f"\nBest params: {best['params']}")
+            print(f"Metrics: {best['metrics']}")
         return best, results
     else:
-        print("No successful runs.")
+        if verbose:
+            print("No successful runs.")
         return None, results

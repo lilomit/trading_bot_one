@@ -1,0 +1,17 @@
+{
+    "Total Return (%)": 0.0,
+    "Annualized Return (%)": 0.0,
+    "Max Drawdown (%)": 0.0,
+    "Sharpe Ratio": 0,
+    "Sortino Ratio": NaN,
+    "Calmar Ratio": 0,
+    "Expectancy": 0,
+    "Std Dev of Returns": 0.0,
+    "Avg Win / Avg Loss": Infinity,
+    "Max Consecutive Wins": 0,
+    "Max Consecutive Losses": 0,
+    "Win Rate (%)": 0,
+    "Profit Factor": Infinity,
+    "Average Trade Return (%)": 0,
+    "Final Capital": 1000
+}

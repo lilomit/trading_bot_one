@@ -1,0 +1,2 @@
+entry_time,exit_time,entry_price,exit_price,volume,profit_pct,reason,fee_cost_entry,fee_cost_exit
+2025-07-31T22:00:00+00:00,2025-08-01T18:00:00+00:00,116111.1875,113788.96375,0.008603822090786903,-2.0980000000000008,Stop Loss,1.0,0.9790200000000001

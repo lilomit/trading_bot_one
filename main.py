@@ -1,14 +1,14 @@
 import pandas as pd
-import matplotlib.pyplot as plt
 import os
-import json
 
 from data import get_data, resample_data
-from strategies import supertrend_rsi_strategy, advanced_strategy
+from strategies.supertrend_rsi_strategies import supertrend_rsi_strategy
+from strategies.advanced_strategies import advanced_strategy
 from backtest import run_backtest
 from metrics import calculate_metrics
 from database import init_db
 from param_tuner import param_tuner
+from walkforward import walk_forward_validation
 
 from config import (
     SYMBOL, INTERVAL, PERIOD, INITIAL_CAPITAL,
@@ -21,6 +21,7 @@ from config import (
 from utils.time import convert_interval_to_minutes
 from utils.report import print_trade_log, print_metrics, save_results
 from utils.plot import plot_price_chart_with_indicators, plot_equity_curve
+from utils.file import create_output_folder, get_filepath
 
 
 def split_data_for_out_of_sample(df, split_ratio=0.8):
@@ -72,11 +73,30 @@ def run_backtest_and_report(df, strategy_func, strategy_name, timeframe, suffix=
     print_metrics(metrics, name=f"{strategy_name} {timeframe} {suffix}")
     print(f"💸 Total Trading Fees: {total_fees:.4f} USD\n")
 
-    save_results(f"{strategy_name}_{timeframe}_{suffix}".strip('_'), trade_log, metrics, capital_over_time)
+    output_folder = create_output_folder(strategy_name=f"{strategy_name}_{timeframe}_{suffix}".strip('_'))
+
+    save_results(
+        strategy_name=f"{strategy_name}_{timeframe}_{suffix}".strip('_'),
+        trade_log=trade_log,
+        metrics=metrics,
+        capital_over_time=capital_over_time,
+        output_dir=output_folder
+    )
 
     try:
-        plot_price_chart_with_indicators(df, name=f"{strategy_name} {timeframe} {suffix}")
-        plot_equity_curve(capital_over_time)
+        plot_price_chart_with_indicators(
+            df,
+            name=f"{strategy_name}_{timeframe}_{suffix}".strip('_'),
+            save_dir=output_folder,
+            show=False
+        )
+
+        plot_equity_curve(
+            capital_over_time,
+            name=f"{strategy_name}_{timeframe}_{suffix}_equity_curve".strip('_'),
+            save_dir=output_folder,
+            show=False
+        )
     except Exception as e:
         print(f"⚠️ Plotting error: {e}")
 
@@ -99,9 +119,10 @@ def main():
     print("Choose mode:")
     print("1: Run a single strategy")
     print("2: Parameter tuning (Grid Search) for Supertrend + RSI")
+    print("3: Walk-forward validation")
 
     try:
-        mode = input("Enter mode (1 or 2): ").strip()
+        mode = input("Enter mode (1, 2 or 3): ").strip()
     except EOFError:
         mode = '1'
 
@@ -129,6 +150,33 @@ def main():
             print("\n=== Best Parameter Set ===")
             print(best["params"])
             print_metrics(best["metrics"], name="Best Params")
+        return
+
+    if mode == '3':
+        param_grid = {
+            "rsi_period": [7, 14],
+            "rsi_buy_threshold": [25, 30],
+            "rsi_sell_threshold": [65, 70],
+            "supertrend_period": [7, 10],
+            "supertrend_multiplier": [2, 3]
+        }
+
+        results = walk_forward_validation(
+            df_original,
+            supertrend_rsi_strategy,
+            param_grid=param_grid,
+            n_splits=5,
+            initial_capital=INITIAL_CAPITAL,
+            stop_loss_pct=STOP_LOSS_PCT,
+            take_profit_pct=TAKE_PROFIT_PCT,
+            trading_fee_pct=TRADING_FEE_PCT,
+            timeframe_minutes=convert_interval_to_minutes(INTERVAL),
+            verbose=True
+        )
+
+        print("\n=== Walk-Forward Validation Results ===")
+        for res in results:
+            print(res)
         return
 
     try:
